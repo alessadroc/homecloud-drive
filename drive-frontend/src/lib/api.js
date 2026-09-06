@@ -1,22 +1,20 @@
 import { get } from 'svelte/store';
+import { env } from '$env/dynamic/public';
 import { token } from './auth.js';
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = env.PUBLIC_API_URL || 'http://localhost:8008';
 
 async function request(path, options = {}) {
     const currentToken = get(token);
     const headers = { ...options.headers };
     if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
-
     const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-
     if (!response.ok) {
         let detail = 'Request failed';
         try {
             const body = await response.json();
             detail = body.detail || detail;
         } catch (_) { /* non-JSON error body */ }
-        // A 401 means our token is stale/invalid — surface it distinctly.
         if (response.status === 401) throw new Error('UNAUTHORIZED');
         throw new Error(detail);
     }

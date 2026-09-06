@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: drive_db
+      POSTGRES_USER: drive_user
+      POSTGRES_PASSWORD: your_password_here
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U drive_user -d drive_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./drive-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_NAME: drive_db
+      DB_USER: drive_user
+      DB_PASSWORD: your_password_here
+      DB_HOST: db          # <-- the service name, not localhost
+      DB_PORT: 5432
+      STORAGE_ROOT: /data/storage
+    volumes:
+      - filestorage:/data/storage
+    ports:
+      - "8008:8000"
+
+volumes:
+  pgdata:
+  filestorage:

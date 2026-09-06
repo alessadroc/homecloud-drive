@@ -52,6 +52,7 @@ declare module '$env/static/private' {
 	export const npm_package_json: string;
 	export const IM_CONFIG_ENTRY: string;
 	export const GTK_MODULES: string;
+	export const PS1: string;
 	export const MANAGERPID: string;
 	export const npm_config_userconfig: string;
 	export const npm_config_local_prefix: string;
@@ -218,6 +219,7 @@ declare module '$env/dynamic/private' {
 		npm_package_json: string;
 		IM_CONFIG_ENTRY: string;
 		GTK_MODULES: string;
+		PS1: string;
 		MANAGERPID: string;
 		npm_config_userconfig: string;
 		npm_config_local_prefix: string;

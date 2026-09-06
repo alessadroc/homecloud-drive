@@ -1,9 +1,21 @@
 # homecloud-drive
-# Home Network Storage System
+A self-hosted storage system designed to run on a home server and provide file storage and management to devices connected to the local network.
 
-A self-hosted cloud storage system designed to run on a home server and provide file storage and management to devices connected to the local network.
+This repository contains the full-stack application component of the home storage system. It does not contain details on the Ubuntu configuration and the network topology.
 
-The project combines **systems engineering and full-stack software development**, with an emphasis on Linux server administration, networking, authentication, storage, and database management.
+## Running
+
+Clone the repository. Install Docker Desktop for your OS, then navigate to codebase. 
+
+```docker compose up -d --build```
+
+Navigate to the frontend folder. Install NPM and Node.JS
+
+Run:
+
+```npm run dev```
+
+Click the link that comes up in the terminal to interact with the frontend.
 
 ## Features
 
@@ -27,29 +39,24 @@ The application is tested and deployed on a repurposed **Dell OptiPlex** running
 ### Backend
 
 * **Python**
-* **FastAPI** — REST API and backend services
-* **Psycopg** — PostgreSQL database interface
-* **PostgreSQL** — user accounts and file metadata
+* **FastAPI**: REST API and backend services
+* **Psycopg**: PostgreSQL database interface
+* **PostgreSQL**: user accounts and file metadata
 
 ### Frontend
 
-* **Svelte** — web client and user interface
+* **Svelte**: web client and user interface
 
-### Server / Systems
+### Server / Systems Tools
 
-* **Ubuntu Server** — home server operating system
-* **OpenSSH** — remote server administration
-* **Linux filesystem** — file storage
-* **Dell OptiPlex** — repurposed home server hardware
+* **Ubuntu Server**: home server operating system
+* **OpenSSH**: remote server administration
+* **Linux filesystem**: file storage
 
-### Potential Future Technology
-
-* **C / FUSE** — potential experimental custom filesystem implementation for further exploration of Linux filesystem and operating-system concepts.
-
-## Project Structure
+## Components 
 
 The project consists of three main components:
 
-* **Client** — Svelte-based interface for users to interact with their files.
-* **Backend** — FastAPI application responsible for authentication, file management, permissions, and database communication.
-* **Home Server** — Ubuntu Server machine hosting the application, PostgreSQL database, and stored files.
+* **Client**: Svelte/JS based interface for users to interact with their files.
+* **Backend**: FastAPI application responsible for authentication, file management, permissions, and database communication.
+* **Home Server**: Ubuntu Server machine hosting the application, PostgreSQL database, and stored files.

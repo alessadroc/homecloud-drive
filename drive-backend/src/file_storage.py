@@ -20,8 +20,10 @@ class FileStorage:
         return user_root
 
     def save_file(self, user_id, file_obj) -> str:
+        user_dir = self._user_root_path(user_id)
+        os.makedirs(user_dir, exist_ok=True)   # ensure the per-user dir exists
         storage_name = str(uuid.uuid4())
-        dest_path = os.path.join(self._user_root_path(user_id), storage_name)
+        dest_path = os.path.join(user_dir, storage_name)
         with open(dest_path, "wb") as f:
             shutil.copyfileobj(file_obj, f)
         return storage_name

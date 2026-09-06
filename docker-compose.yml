@@ -22,11 +22,12 @@ services:
       DB_NAME: drive_db
       DB_USER: drive_user
       DB_PASSWORD: your_password_here
-      DB_HOST: db          # <-- the service name, not localhost
+      DB_HOST: db
       DB_PORT: 5432
       STORAGE_ROOT: /data/storage
+    user: "1000:1000"
     volumes:
-      - filestorage:/data/storage
+      - /mnt/external-ssd/drive-storage:/data/storage
     ports:
       - "8008:8000"
 

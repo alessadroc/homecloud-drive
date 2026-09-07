@@ -8,9 +8,16 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from database import Database
+from contextlib import asynccontextmanager
+from cleanup import purge_trash
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print(purge_trash(db, storage))
+    yield
 
 load_dotenv()
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 db = Database()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 storage = FileStorage(root_dir=os.getenv("STORAGE_ROOT"))
@@ -84,18 +91,21 @@ def upload_file(
     if folder["user_id"] != user_id:
         raise HTTPException(status_code=403, detail="This folder does not belong to you")
 
-    storage_name = storage.save_file(user_id, file.file)
+    storage_params = storage.save_file(user_id, file.file)
+
     file_id = db.insert_file(
         user_id=user_id,
         folder_id=folder_id,
         filename=file.filename,
-        file_uid=storage_name
+        file_uid=storage_params['storage_name'],
+        size=storage_params['storage_size']
     )
     return {
         "status": "ok",
         "message": "File uploaded.",
         "file_id": file_id,
-        "filename": file.filename
+        "filename": file.filename,
+        "params" : storage_params
     }
 
 
@@ -124,6 +134,30 @@ def download_file(file_id: int, user_id: int = Depends(_get_current_user_id)):
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
+@app.post("/files/{file_id}/move")
+def move_file(
+    file_id: int,
+    folder_id: int = Form(...),
+    user_id: int = Depends(_get_current_user_id)
+):
+    file_row = db.get_file(file_id)
+    if file_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    if file_row["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="This file does not belong to you")
+
+    destination = db.get_folder(folder_id)
+    if destination is None:
+        raise HTTPException(status_code=404, detail="Destination folder not found")
+    if destination["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="That folder does not belong to you")
+    if destination["deleted_at"] is not None:
+        raise HTTPException(status_code=400, detail="That folder is in the trash")
+
+    if not db.move_file(file_id, folder_id):
+        raise HTTPException(status_code=500, detail="Couldn't move the file")
+
+    return {"status": "ok", "message": "File moved."}
 
 @app.delete("/files/{file_id}")
 def delete_file(file_id: int, user_id: int = Depends(_get_current_user_id)):
@@ -146,6 +180,44 @@ def restore_file(file_id: int, user_id: int = Depends(_get_current_user_id)):
     db.restore_file(file_id)
     return {"status": "ok", "message": "File restored."}
 
+@app.post("/folders")
+def create_folder(
+    name: str = Form(...),
+    parent_folder_id: int = Form(...),
+    user_id: int = Depends(_get_current_user_id)
+):
+    parent = db.get_folder(parent_folder_id)
+    if parent is None:
+        raise HTTPException(status_code=404, detail="Parent folder not found")
+    if parent["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="This folder does not belong to you")
+    if parent["deleted_at"] is not None:
+        raise HTTPException(status_code=400, detail="That folder is in the trash")
+
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Give the folder a name")
+
+    folder_id = db.insert_folder(user_id, parent_folder_id, name)
+    if folder_id is None:
+        raise HTTPException(status_code=500, detail="Couldn't create the folder")
+
+    return {"status": "ok", "message": "Folder created", "folder_id": folder_id}
+
+@app.get("/folders/{folder_id}/contents")
+def folder_contents(folder_id: int, user_id: int = Depends(_get_current_user_id)):
+    folder = db.get_folder(folder_id)
+    if folder is None:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    if folder["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="This folder does not belong to you")
+    if folder["deleted_at"] is not None:
+        raise HTTPException(status_code=404, detail="That folder is in the trash")
+
+    contents = db.get_folder_contents(folder_id)
+    if contents is None:
+        raise HTTPException(status_code=500, detail="Couldn't read that folder")
+    return contents
 
 @app.delete("/folders/{folder_id}")
 def delete_folder(folder_id: int, user_id: int = Depends(_get_current_user_id)):

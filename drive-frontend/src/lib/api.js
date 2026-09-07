@@ -52,8 +52,12 @@ export const api = {
 		return res.json();
 	},
 
-	/** Multipart upload. Don't set Content-Type - the browser adds the boundary. */
-	async upload(path, formData) {
+	/**
+	 * POST multipart/form-data. Used for both uploads and any route taking
+	 * FastAPI Form(...) fields. Never set Content-Type by hand here - the
+	 * browser has to add the multipart boundary itself.
+	 */
+	async postForm(path, formData) {
 		return request(path, { method: 'POST', body: formData });
 	},
 

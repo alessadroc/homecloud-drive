@@ -1,5 +1,5 @@
 <script>
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { api } from '$lib/api.js';
 	import { signOut, username } from '$lib/auth.js';
 	import { goto } from '$app/navigation';
@@ -8,16 +8,44 @@
 	let files = $state([]);
 	let rootFolderId = $state(null);
 
+	// Where we are. First entry is always root; clicking a crumb truncates.
+	let trail = $state([]);
+
 	let loading = $state(true);
 	let error = $state('');
 	let uploadingCount = $state(0);
 	let dragDepth = $state(0);
 
-	let fileInput;
+	let makingFolder = $state(false);
+	let newFolderName = $state('');
+	let savingFolder = $state(false);
 
+	let movingFile = $state(null);
+	let moveTarget = $state('');
+	let savingMove = $state(false);
+
+	// bind:this targets are reassigned by Svelte, so they need $state too.
+	let fileInput = $state();
+	let folderNameInput = $state();
+
+	let currentFolderId = $derived(trail.length ? trail[trail.length - 1].folder_id : null);
 	let isEmpty = $derived(!loading && folders.length === 0 && files.length === 0);
 	let dragging = $derived(dragDepth > 0);
 	let itemCount = $derived(folders.length + files.length);
+
+	/** Somewhere a file in this folder could go: any subfolder here, plus the
+	    folder above if we aren't at the root. */
+	let moveOptions = $derived.by(() => {
+		const options = [];
+		if (trail.length > 1) {
+			const parent = trail[trail.length - 2];
+			options.push({ folder_id: parent.folder_id, label: `Up to ${parent.name}` });
+		}
+		for (const folder of folders) {
+			options.push({ folder_id: folder.folder_id, label: folder.name });
+		}
+		return options;
+	});
 
 	/** A dead session should drop you at sign-in rather than showing an error. */
 	function report(e) {
@@ -29,12 +57,14 @@
 		error = e.message;
 	}
 
-	async function load() {
+	/** First load: discover the root folder and start the trail there. */
+	async function bootstrap() {
 		error = '';
 		loading = true;
 		try {
 			const data = await api.getJSON('/get-root-contents');
 			rootFolderId = data.root_folder_id;
+			trail = [{ folder_id: data.root_folder_id, name: 'Your files' }];
 			folders = data.folders ?? [];
 			files = data.files ?? [];
 		} catch (e) {
@@ -44,12 +74,118 @@
 		}
 	}
 
+	async function loadFolder(folderId) {
+		error = '';
+		loading = true;
+		try {
+			const data = await api.getJSON(`/folders/${folderId}/contents`);
+			folders = data.folders ?? [];
+			files = data.files ?? [];
+		} catch (e) {
+			report(e);
+		} finally {
+			loading = false;
+		}
+	}
+
+	function refresh() {
+		return currentFolderId === null ? bootstrap() : loadFolder(currentFolderId);
+	}
+
+	function openFolder(folder) {
+		cancelMove();
+		trail = [...trail, { folder_id: folder.folder_id, name: folder.name }];
+		loadFolder(folder.folder_id);
+	}
+
+	function goToCrumb(index) {
+		if (index === trail.length - 1) return;
+		cancelMove();
+		trail = trail.slice(0, index + 1);
+		loadFolder(trail[index].folder_id);
+	}
+
+	// --- creating folders -------------------------------------------------
+
+	async function startNewFolder() {
+		makingFolder = true;
+		newFolderName = '';
+		await tick();
+		folderNameInput?.focus();
+	}
+
+	function cancelNewFolder() {
+		makingFolder = false;
+		newFolderName = '';
+	}
+
+	async function saveNewFolder() {
+		const name = newFolderName.trim();
+		if (!name || savingFolder || currentFolderId === null) return;
+
+		savingFolder = true;
+		error = '';
+		try {
+			const form = new FormData();
+			form.append('name', name);
+			form.append('parent_folder_id', currentFolderId);
+			await api.postForm('/folders', form);
+			cancelNewFolder();
+			await refresh();
+		} catch (e) {
+			report(e);
+		} finally {
+			savingFolder = false;
+		}
+	}
+
+	function onFolderNameKey(event) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			saveNewFolder();
+		} else if (event.key === 'Escape') {
+			cancelNewFolder();
+		}
+	}
+
+	// --- moving files -----------------------------------------------------
+
+	function startMove(file) {
+		movingFile = file;
+		moveTarget = moveOptions.length ? String(moveOptions[0].folder_id) : '';
+	}
+
+	function cancelMove() {
+		movingFile = null;
+		moveTarget = '';
+	}
+
+	async function confirmMove() {
+		if (!movingFile || !moveTarget || savingMove) return;
+
+		savingMove = true;
+		error = '';
+		try {
+			const form = new FormData();
+			form.append('folder_id', moveTarget);
+			await api.postForm(`/files/${movingFile.file_id}/move`, form);
+			cancelMove();
+			await refresh();
+		} catch (e) {
+			report(e);
+		} finally {
+			savingMove = false;
+		}
+	}
+
+	// --- uploading --------------------------------------------------------
+
 	async function uploadAll(fileList) {
 		const chosen = Array.from(fileList ?? []);
 		if (chosen.length === 0) return;
 
-		if (rootFolderId === null) {
-			error = 'The server didn’t return a root folder, so there’s nowhere to put these. Reload and try again.';
+		if (currentFolderId === null) {
+			error = 'Still working out which folder you’re in. Reload and try again.';
 			return;
 		}
 
@@ -59,9 +195,9 @@
 		for (const file of chosen) {
 			try {
 				const form = new FormData();
-				form.append('folder_id', rootFolderId);
+				form.append('folder_id', currentFolderId);
 				form.append('file', file);
-				await api.upload('/files', form);
+				await api.postForm('/files', form);
 			} catch (e) {
 				if (e.status === 401) {
 					uploadingCount = 0;
@@ -76,7 +212,7 @@
 		}
 
 		uploadingCount = 0;
-		await load();
+		await refresh();
 	}
 
 	function onPick(event) {
@@ -89,6 +225,8 @@
 		dragDepth = 0;
 		uploadAll(event.dataTransfer?.files);
 	}
+
+	// --- file actions -----------------------------------------------------
 
 	async function download(file) {
 		error = '';
@@ -109,9 +247,8 @@
 		}
 	}
 
-	async function trash(file) {
+	async function trashFile(file) {
 		error = '';
-		// Drop it from the list immediately, put it back if the server disagrees.
 		const previous = files;
 		files = files.filter((f) => f.file_id !== file.file_id);
 		try {
@@ -122,10 +259,24 @@
 		}
 	}
 
+	async function trashFolder(folder) {
+		error = '';
+		const previous = folders;
+		folders = folders.filter((f) => f.folder_id !== folder.folder_id);
+		try {
+			await api.remove(`/folders/${folder.folder_id}`);
+		} catch (e) {
+			folders = previous;
+			report(e);
+		}
+	}
+
 	function leave() {
 		signOut();
 		goto('/login');
 	}
+
+	// --- display helpers --------------------------------------------------
 
 	/** Extension badge, since the backend doesn't store a MIME type. */
 	function extensionOf(filename) {
@@ -134,7 +285,32 @@
 		return filename.slice(dot + 1).toLowerCase().slice(0, 4);
 	}
 
-	onMount(load);
+	/** Files uploaded before the size column existed report 0; show nothing. */
+	function formatSize(bytes) {
+		if (!bytes) return '';
+		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+		let value = bytes;
+		let unit = 0;
+		while (value >= 1024 && unit < units.length - 1) {
+			value /= 1024;
+			unit += 1;
+		}
+		return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+	}
+
+	function formatDate(stamp) {
+		if (!stamp) return '';
+		const date = new Date(stamp);
+		if (Number.isNaN(date.getTime())) return '';
+		const sameYear = date.getFullYear() === new Date().getFullYear();
+		return date.toLocaleDateString(undefined, {
+			day: 'numeric',
+			month: 'short',
+			year: sameYear ? undefined : 'numeric'
+		});
+	}
+
+	onMount(bootstrap);
 </script>
 
 <svelte:head><title>Your files · homecloud</title></svelte:head>
@@ -164,8 +340,17 @@
 
 	<main>
 		<div class="bar">
-			<div>
-				<h1>Your files</h1>
+			<div class="place">
+				<nav class="crumbs" aria-label="Folder path">
+					{#each trail as crumb, i (crumb.folder_id)}
+						{#if i > 0}<span class="sep" aria-hidden="true">/</span>{/if}
+						{#if i === trail.length - 1}
+							<span class="here" aria-current="page">{crumb.name}</span>
+						{:else}
+							<button class="crumb" onclick={() => goToCrumb(i)}>{crumb.name}</button>
+						{/if}
+					{/each}
+				</nav>
 				<p class="count">
 					{#if loading}
 						Loading…
@@ -178,13 +363,18 @@
 				</p>
 			</div>
 
-			<button class="btn" onclick={() => fileInput.click()} disabled={uploadingCount > 0}>
-				{#if uploadingCount > 0}
-					Uploading {uploadingCount}…
-				{:else}
-					Upload files
-				{/if}
-			</button>
+			<div class="tools">
+				<button class="btn btn-quiet" onclick={startNewFolder} disabled={makingFolder || loading}>
+					New folder
+				</button>
+				<button class="btn" onclick={() => fileInput.click()} disabled={uploadingCount > 0}>
+					{#if uploadingCount > 0}
+						Uploading {uploadingCount}…
+					{:else}
+						Upload files
+					{/if}
+				</button>
+			</div>
 			<input bind:this={fileInput} type="file" multiple onchange={onPick} hidden />
 		</div>
 
@@ -192,30 +382,88 @@
 			<p class="notice">{error}</p>
 		{/if}
 
+		{#if makingFolder}
+			<div class="inline-row">
+				<span class="badge folder" aria-hidden="true"></span>
+				<input
+					bind:this={folderNameInput}
+					bind:value={newFolderName}
+					class="field"
+					type="text"
+					placeholder="Folder name"
+					onkeydown={onFolderNameKey}
+					disabled={savingFolder}
+				/>
+				<button
+					class="btn small"
+					onclick={saveNewFolder}
+					disabled={savingFolder || !newFolderName.trim()}
+				>
+					{savingFolder ? 'Creating…' : 'Create'}
+				</button>
+				<button class="btn btn-quiet small" onclick={cancelNewFolder} disabled={savingFolder}>
+					Cancel
+				</button>
+			</div>
+		{/if}
+
 		{#if loading}
 			<p class="quiet">Fetching your files.</p>
-		{:else if isEmpty}
+		{:else if isEmpty && !makingFolder}
 			<div class="empty">
-				<p class="empty-head">Nothing here yet</p>
+				<p class="empty-head">Nothing in this folder</p>
 				<p class="quiet">Drag files anywhere on this page, or use Upload files above.</p>
 			</div>
-		{:else}
+		{:else if !isEmpty}
 			<ul class="list">
 				{#each folders as folder (folder.folder_id)}
 					<li class="row">
-						<span class="badge folder" aria-hidden="true"></span>
-						<span class="label">{folder.name}</span>
+						<button class="open" onclick={() => openFolder(folder)}>
+							<span class="badge folder" aria-hidden="true"></span>
+							<span class="label">{folder.name}</span>
+						</button>
+						<span class="actions">
+							<button class="btn btn-danger small" onclick={() => trashFolder(folder)}>Trash</button>
+						</span>
 					</li>
 				{/each}
 
 				{#each files as file (file.file_id)}
 					<li class="row">
 						<span class="badge">{extensionOf(file.filename)}</span>
-						<span class="label">{file.filename}</span>
-						<span class="actions">
-							<button class="btn btn-quiet small" onclick={() => download(file)}>Download</button>
-							<button class="btn btn-danger small" onclick={() => trash(file)}>Trash</button>
+						<span class="detail">
+							<span class="label">{file.filename}</span>
+							{#if formatSize(file.size) || formatDate(file.created_at)}
+								<span class="meta">
+									{#if formatSize(file.size)}<span>{formatSize(file.size)}</span>{/if}
+									{#if formatDate(file.created_at)}<span>{formatDate(file.created_at)}</span>{/if}
+								</span>
+							{/if}
 						</span>
+
+						{#if movingFile?.file_id === file.file_id}
+							<span class="actions open-actions">
+								<select class="field compact" bind:value={moveTarget} disabled={savingMove}>
+									{#each moveOptions as option (option.folder_id)}
+										<option value={String(option.folder_id)}>{option.label}</option>
+									{/each}
+								</select>
+								<button class="btn small" onclick={confirmMove} disabled={savingMove || !moveTarget}>
+									{savingMove ? 'Moving…' : 'Move'}
+								</button>
+								<button class="btn btn-quiet small" onclick={cancelMove} disabled={savingMove}>
+									Cancel
+								</button>
+							</span>
+						{:else}
+							<span class="actions">
+								{#if moveOptions.length > 0}
+									<button class="btn btn-quiet small" onclick={() => startMove(file)}>Move</button>
+								{/if}
+								<button class="btn btn-quiet small" onclick={() => download(file)}>Download</button>
+								<button class="btn btn-danger small" onclick={() => trashFile(file)}>Trash</button>
+							</span>
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -286,6 +534,45 @@
 		margin-bottom: 1.5rem;
 	}
 
+	.tools {
+		display: flex;
+		flex: none;
+		gap: 0.5rem;
+	}
+
+	.crumbs {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.4rem;
+		font-size: 1.5rem;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+	}
+
+	.crumb {
+		font: inherit;
+		padding: 0;
+		color: var(--teal);
+		background: none;
+		border: none;
+		cursor: pointer;
+	}
+
+	.crumb:hover {
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+
+	.sep {
+		color: var(--line);
+		font-weight: 400;
+	}
+
+	.here {
+		color: var(--ink);
+	}
+
 	.count {
 		margin: 0.2rem 0 0;
 		font-size: 0.925rem;
@@ -295,6 +582,21 @@
 	.quiet {
 		margin: 0;
 		color: var(--ink-soft);
+	}
+
+	.inline-row {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin-top: 1.25rem;
+		padding: 0.6rem 0.5rem;
+		background: var(--mint-wash);
+		border: 1px solid var(--mint);
+		border-radius: var(--radius);
+	}
+
+	.inline-row .field {
+		flex: 1;
 	}
 
 	.list {
@@ -314,6 +616,23 @@
 
 	.row:hover {
 		background: var(--surface);
+	}
+
+	/* Folder rows are a button so they're keyboard reachable, but they must
+	   still lay out like the file rows beside them. */
+	.open {
+		display: flex;
+		flex: 1;
+		align-items: center;
+		gap: 0.85rem;
+		min-width: 0;
+		padding: 0;
+		font: inherit;
+		color: inherit;
+		text-align: left;
+		background: none;
+		border: none;
+		cursor: pointer;
 	}
 
 	.badge {
@@ -336,12 +655,24 @@
 		border-color: var(--teal);
 	}
 
-	.label {
+	.detail {
+		display: flex;
 		flex: 1;
+		flex-direction: column;
 		min-width: 0;
+	}
+
+	.label {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.meta {
+		display: flex;
+		gap: 0.75rem;
+		font-size: 0.8rem;
+		color: var(--ink-soft);
 	}
 
 	.actions {
@@ -351,6 +682,11 @@
 		opacity: 0;
 	}
 
+	/* The move controls are mid-interaction, so they stay put. */
+	.open-actions {
+		opacity: 1;
+	}
+
 	.row:hover .actions,
 	.row:focus-within .actions {
 		opacity: 1;
@@ -358,6 +694,13 @@
 
 	.small {
 		padding: 0.3rem 0.7rem;
+		font-size: 0.875rem;
+	}
+
+	.compact {
+		width: auto;
+		max-width: 12rem;
+		padding: 0.3rem 0.5rem;
 		font-size: 0.875rem;
 	}
 
@@ -407,6 +750,10 @@
 
 		.actions {
 			opacity: 1;
+		}
+
+		.crumbs {
+			font-size: 1.25rem;
 		}
 	}
 </style>

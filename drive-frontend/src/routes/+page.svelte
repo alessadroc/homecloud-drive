@@ -1,8 +1,9 @@
 <script>
 	import { onMount, tick } from 'svelte';
 	import { api } from '$lib/api.js';
-	import { signOut, username } from '$lib/auth.js';
+	import { signOut } from '$lib/auth.js';
 	import { goto } from '$app/navigation';
+	import Header from '$lib/Header.svelte';
 
 	let folders = $state([]);
 	let files = $state([]);
@@ -271,11 +272,6 @@
 		}
 	}
 
-	function leave() {
-		signOut();
-		goto('/login');
-	}
-
 	// --- display helpers --------------------------------------------------
 
 	/** Extension badge, since the backend doesn't store a MIME type. */
@@ -330,13 +326,7 @@
 	role="region"
 	aria-label="File drop area"
 >
-	<header>
-		<p class="mark"><span class="dot" aria-hidden="true"></span>homecloud</p>
-		<div class="who">
-			{#if $username}<span class="name">{$username}</span>{/if}
-			<button class="btn btn-quiet" onclick={leave}>Sign out</button>
-		</div>
-	</header>
+	<Header />
 
 	<main>
 		<div class="bar">
@@ -480,44 +470,6 @@
 <style>
 	.page {
 		min-height: 100vh;
-	}
-
-	header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 1rem 1.5rem;
-		border-bottom: 1px solid var(--line);
-		background: var(--surface);
-	}
-
-	.mark {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		margin: 0;
-		font-weight: 600;
-		color: var(--teal);
-	}
-
-	.dot {
-		width: 0.7rem;
-		height: 0.7rem;
-		border-radius: 2px;
-		background: var(--mint);
-		border: 2px solid var(--teal);
-	}
-
-	.who {
-		display: flex;
-		align-items: center;
-		gap: 0.85rem;
-	}
-
-	.name {
-		font-size: 0.925rem;
-		color: var(--ink-soft);
 	}
 
 	main {

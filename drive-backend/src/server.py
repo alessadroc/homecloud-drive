@@ -239,3 +239,51 @@ def restore_folder(folder_id: int, user_id: int = Depends(_get_current_user_id))
         raise HTTPException(status_code=403, detail="This folder does not belong to you")
     db.restore_folder(folder_id)
     return {"status": "ok", "message": "Folder restored."}
+
+@app.get("/trash")
+def list_trash(user_id: int = Depends(_get_current_user_id)):
+    items = db.get_trashed_items(user_id)
+    if items is None:
+        raise HTTPException(status_code=500, detail="Couldn't read the trash")
+    return items
+
+
+@app.post("/files/{file_id}/restore")
+def restore_file(file_id: int, user_id: int = Depends(_get_current_user_id)):
+    file_row = db.get_file(file_id)
+    if file_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    if file_row["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="This file does not belong to you")
+
+    # If the folder it came from is still in the trash restoring in place
+    # would leave the file still marked as trash, so put it back at the root instead
+    parent = db.get_folder(file_row["folder_id"])
+    if parent is None or parent["deleted_at"] is not None:
+        root_id = db.get_root_folder_id(user_id)
+        if root_id is None:
+            raise HTTPException(status_code=500, detail="You have no root folder")
+        db.move_file(file_id, root_id)
+
+    if not db.restore_file(file_id):
+        raise HTTPException(status_code=404, detail="That file isn’t in the trash")
+    return {"status": "ok", "message": "File restored."}
+
+
+@app.post("/folders/{folder_id}/restore")
+def restore_folder(folder_id: int, user_id: int = Depends(_get_current_user_id)):
+    folder = db.get_folder(folder_id)
+    if folder is None:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    if folder["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="This folder does not belong to you")
+
+    parent = db.get_folder(folder["parent_folder_id"]) if folder["parent_folder_id"] else None
+    if parent is not None and parent["deleted_at"] is not None:
+        root_id = db.get_root_folder_id(user_id)
+        if root_id is not None:
+            db.move_folder(folder_id, root_id)
+
+    if not db.restore_folder(folder_id):
+        raise HTTPException(status_code=404, detail="That folder isn’t in the trash")
+    return {"status": "ok", "message": "Folder restored."}

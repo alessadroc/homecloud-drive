@@ -32,7 +32,7 @@ Click the link that comes up in the terminal to interact with the frontend.
 
 ## Architecture
 
-The application is tested and deployed on a repurposed **Dell OptiPlex** running Ubuntu Server. Clients communicate with the FastAPI backend over the home network.
+The application is tested and deployed on Ubuntu Server. Clients communicate with the FastAPI backend over the network.
 
 ## Technologies Used
 

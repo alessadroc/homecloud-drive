@@ -1,0 +1,152 @@
+/* ---------------------------------------------------------------
+   homecloud - design tokens
+   Teal carries interaction, mint carries attention.
+   --------------------------------------------------------------- */
+
+:root {
+	--paper: #f7fbfa;
+	--surface: #ffffff;
+
+	--ink: #0f2e2b;
+	--ink-soft: #5b7c78;
+
+	--teal: #0f766e;
+	--teal-dark: #0b5b55;
+	--mint: #5eead4;
+	--mint-wash: #e9fbf7;
+
+	--line: #dbe8e5;
+	--rust: #b4453a;
+
+	--radius: 8px;
+	--measure: 62ch;
+
+	--font:
+		ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+		sans-serif;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	background: var(--paper);
+}
+
+body {
+	margin: 0;
+	font-family: var(--font);
+	font-size: 16px;
+	line-height: 1.5;
+	color: var(--ink);
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+	margin: 0;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+h1 {
+	font-size: 1.5rem;
+}
+
+a {
+	color: var(--teal);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 2px;
+}
+
+/* Visible keyboard focus everywhere, in mint so it reads as attention. */
+:focus-visible {
+	outline: 2px solid var(--mint);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+/* --- shared primitives ------------------------------------------------ */
+
+.btn {
+	font: inherit;
+	font-weight: 500;
+	padding: 0.55rem 1.1rem;
+	border: 1px solid transparent;
+	border-radius: var(--radius);
+	background: var(--teal);
+	color: #fff;
+	cursor: pointer;
+	transition: background 120ms ease;
+}
+
+.btn:hover:not(:disabled) {
+	background: var(--teal-dark);
+}
+
+.btn:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+.btn-quiet {
+	background: transparent;
+	color: var(--teal);
+	border-color: var(--line);
+}
+
+.btn-quiet:hover:not(:disabled) {
+	background: var(--mint-wash);
+	border-color: var(--mint);
+}
+
+.btn-danger {
+	background: transparent;
+	color: var(--rust);
+	border-color: transparent;
+}
+
+.btn-danger:hover:not(:disabled) {
+	background: #fdf0ef;
+}
+
+.field {
+	font: inherit;
+	width: 100%;
+	padding: 0.6rem 0.75rem;
+	color: var(--ink);
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+}
+
+.field::placeholder {
+	color: var(--ink-soft);
+}
+
+.field:focus {
+	border-color: var(--teal);
+}
+
+.notice {
+	margin: 0;
+	padding: 0.65rem 0.85rem;
+	font-size: 0.925rem;
+	color: #7a2b23;
+	background: #fdf0ef;
+	border: 1px solid #f2cfcb;
+	border-radius: var(--radius);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+	}
+}

@@ -1,23 +1,27 @@
 <script>
-    import { token } from '$lib/auth.js';
-    import { goto } from '$app/navigation';
-    import { page } from '$app/stores';
-    import { browser } from '$app/environment';
+	import '../app.css';
+	import { token } from '$lib/auth.js';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
 
-    let { children } = $props();
+	let { children } = $props();
 
-    const publicRoutes = ['/login', '/signup'];
+	const publicRoutes = ['/login', '/signup'];
 
-    let isPublic = $derived(publicRoutes.includes($page.url.pathname));
-    let canRender = $derived(isPublic ? !$token : !!$token);
+	let isPublic = $derived(publicRoutes.includes($page.url.pathname));
 
-    $effect(() => {
-        if (!browser) return;
-        if (!$token && !isPublic) goto('/login');
-        if ($token && isPublic) goto('/');
-    });
+	// Only render once auth state and route agree, so protected content
+	// never flashes on screen before the redirect below lands.
+	let canRender = $derived(isPublic ? !$token : !!$token);
+
+	$effect(() => {
+		if (!browser) return;
+		if (!$token && !isPublic) goto('/login');
+		if ($token && isPublic) goto('/');
+	});
 </script>
 
 {#if canRender}
-    {@render children()}
+	{@render children()}
 {/if}

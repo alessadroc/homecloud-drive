@@ -1,41 +1,72 @@
 import { get } from 'svelte/store';
-import { env } from '$env/dynamic/public';
 import { token } from './auth.js';
 
-const BASE_URL = env.PUBLIC_API_URL || 'http://localhost:8008';
+// Set VITE_API_URL in the frontend's .env to point at the server
+// (e.g. http://10.0.0.50:8008 once this is deployed to the Optiplex).
+const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8008';
+
+/** Thrown for any non-2xx response. `status` lets callers treat 401 specially. */
+export class ApiError extends Error {
+	constructor(message, status) {
+		super(message);
+		this.name = 'ApiError';
+		this.status = status;
+	}
+}
 
 async function request(path, options = {}) {
-    const currentToken = get(token);
-    const headers = { ...options.headers };
-    if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
-    const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-    if (!response.ok) {
-        let detail = 'Request failed';
-        try {
-            const body = await response.json();
-            detail = body.detail || detail;
-        } catch (_) { /* non-JSON error body */ }
-        if (response.status === 401) throw new Error('UNAUTHORIZED');
-        throw new Error(detail);
-    }
-    return response;
+	const currentToken = get(token);
+	const headers = { ...options.headers };
+	if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
+
+	let response;
+	try {
+		response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+	} catch {
+		// fetch only rejects when the request never reached the server.
+		throw new ApiError(`Can't reach the server at ${BASE_URL}.`, 0);
+	}
+
+	if (!response.ok) {
+		let detail = `The server returned ${response.status}.`;
+		try {
+			const body = await response.json();
+			if (body?.detail) detail = body.detail;
+		} catch {
+			// Error body wasn't JSON - keep the status-based message.
+		}
+		throw new ApiError(detail, response.status);
+	}
+
+	return response;
 }
 
 export const api = {
-    async getJSON(path) {
-        const res = await request(path, { method: 'GET' });
-        return res.json();
-    },
-    async post(path, options = {}) {
-        return request(path, { method: 'POST', ...options });
-    },
-    async upload(path, formData) {
-        return request(path, { method: 'POST', body: formData });
-    },
-    async getRaw(path) {
-        return request(path, { method: 'GET' });
-    },
-    async delete(path) {
-        return request(path, { method: 'DELETE' });
-    },
+	async getJSON(path) {
+		const res = await request(path, { method: 'GET' });
+		return res.json();
+	},
+
+	async postJSON(path) {
+		const res = await request(path, { method: 'POST' });
+		return res.json();
+	},
+
+	/** Multipart upload. Don't set Content-Type - the browser adds the boundary. */
+	async upload(path, formData) {
+		return request(path, { method: 'POST', body: formData });
+	},
+
+	/** Raw response, for streaming a file body into a blob. */
+	async getRaw(path) {
+		return request(path, { method: 'GET' });
+	},
+
+	async remove(path) {
+		return request(path, { method: 'DELETE' });
+	}
 };
+
+export function query(params) {
+	return new URLSearchParams(params).toString();
+}

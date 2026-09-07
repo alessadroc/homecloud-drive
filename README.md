@@ -1,5 +1,5 @@
 # homecloud-drive
-A self-hosted storage system designed to run on a home server and provide file storage and management to devices connected to the local network.
+A self-hosted storage system designed to run on a home server and provide file storage and management to devices connected to the local network. Currently work-in-progress.
 
 This repository contains the full-stack application component of the home storage system. It does not contain details on the Ubuntu configuration and the network topology.
 

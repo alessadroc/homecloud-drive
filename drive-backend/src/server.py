@@ -287,3 +287,10 @@ def restore_folder(folder_id: int, user_id: int = Depends(_get_current_user_id))
     if not db.restore_folder(folder_id):
         raise HTTPException(status_code=404, detail="That folder isn’t in the trash")
     return {"status": "ok", "message": "Folder restored."}
+
+@app.get("/usage")
+def usage(user_id: int = Depends(_get_current_user_id)):
+    return {
+        "used_bytes" : storage.usage_for_user(user_id),
+        "quota_bytes" : 100 * 1024 ** 3,
+    }

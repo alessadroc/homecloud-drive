@@ -4,6 +4,7 @@
 	import { signOut } from '$lib/auth.js';
 	import { goto } from '$app/navigation';
 	import Header from '$lib/Header.svelte';
+	import Quota from '$lib/Quota.svelte';
 
 	let folders = $state([]);
 	let files = $state([]);
@@ -20,6 +21,9 @@
 	let makingFolder = $state(false);
 	let newFolderName = $state('');
 	let savingFolder = $state(false);
+
+	let bytesUsed = $state(0);
+	let quotaBytes = $state(0);
 
 	let movingFile = $state(null);
 	let moveTarget = $state('');
@@ -58,6 +62,18 @@
 		error = e.message;
 	}
 
+	/** Usage is decoration, not data the page depends on - a failure here
+	    should leave the bar blank, never break the file list. */
+	async function loadUsage() {
+		try {
+			const data = await api.getJSON('/usage');
+			bytesUsed = data.used_bytes ?? 0;
+			quotaBytes = data.quota_bytes ?? 0;
+		} catch {
+			// leave the previous figures in place
+		}
+	}
+
 	/** First load: discover the root folder and start the trail there. */
 	async function bootstrap() {
 		error = '';
@@ -73,6 +89,7 @@
 		} finally {
 			loading = false;
 		}
+		loadUsage();
 	}
 
 	async function loadFolder(folderId) {
@@ -87,6 +104,7 @@
 		} finally {
 			loading = false;
 		}
+		loadUsage();
 	}
 
 	function refresh() {
@@ -457,6 +475,10 @@
 					</li>
 				{/each}
 			</ul>
+		{/if}
+
+		{#if quotaBytes > 0}
+			<Quota used={bytesUsed} limit={quotaBytes} />
 		{/if}
 	</main>
 

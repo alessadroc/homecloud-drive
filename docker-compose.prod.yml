@@ -1,0 +1,10 @@
+# Server-only settings. Everything that is merely a different *value*
+
+services:
+  db:
+    restart: unless-stopped
+
+  backend:
+    restart: unless-stopped
+    # No source bind mount and no --reload: the server runs the code baked
+    # into the image, so a deploy is `git pull && docker compose ... up -d --build`.

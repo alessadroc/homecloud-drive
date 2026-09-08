@@ -60,3 +60,7 @@ The project consists of three main components:
 * **Client**: Svelte/JS based interface for users to interact with their files.
 * **Backend**: FastAPI application responsible for authentication, file management, permissions, and database communication.
 * **Home Server**: Ubuntu Server machine hosting the application, PostgreSQL database, and stored files.
+
+## Drive Deployment
+
+By default, the mount location in compose will store uploaded files locally. You must format a storage drive to ext4, mount it and change the bind in compose if you'd wish to use another drive.

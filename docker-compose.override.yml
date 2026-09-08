@@ -1,0 +1,11 @@
+# Loaded automatically by `docker compose up` with no -f flags, so it never
+# reaches the server. Keep this file out of the prod invocation.
+
+services:
+  backend:
+    # Shadow the image's baked-in copy with the working tree, so editing a
+    # route restarts uvicorn instead of needing a rebuild.
+    volumes:
+      - ./drive-backend/src:/app/src
+    command:
+      ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

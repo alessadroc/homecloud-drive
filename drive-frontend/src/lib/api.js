@@ -3,7 +3,7 @@ import { token } from './auth.js';
 
 // Set VITE_API_URL in the frontend's .env to point at the server
 // (e.g. http://10.0.0.50:8008 once this is deployed to the Optiplex).
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8008';
+const BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
 
 /** Thrown for any non-2xx response. `status` lets callers treat 401 specially. */
 export class ApiError extends Error {

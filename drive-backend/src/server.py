@@ -294,3 +294,10 @@ def usage(user_id: int = Depends(_get_current_user_id)):
         "used_bytes" : storage.usage_for_user(user_id),
         "quota_bytes" : 100 * 1024 ** 3,
     }
+
+@app.get("/search")
+def search(q: str, user_id: int = Depends(_get_current_user_id)):
+    term = q.strip()
+    if not term:
+        return {"files": []}
+    return {"files": db.search_files(user_id, term)}

@@ -25,6 +25,13 @@
 	let bytesUsed = $state(0);
 	let quotaBytes = $state(0);
 
+	let searchTerm = $state('');
+	let searchResults = $state([]);
+	let searching = $state(false);
+	let searchTimer;
+
+	let searchMode = $derived(searchTerm.trim().length > 0);
+
 	let movingFile = $state(null);
 	let moveTarget = $state('');
 	let savingMove = $state(false);
@@ -268,12 +275,16 @@
 
 	async function trashFile(file) {
 		error = '';
-		const previous = files;
+		const previousFiles = files;
+		const previousResults = searchResults;
 		files = files.filter((f) => f.file_id !== file.file_id);
+		searchResults = searchResults.filter((f) => f.file_id !== file.file_id);
 		try {
 			await api.remove(`/files/${file.file_id}`);
+			loadUsage();
 		} catch (e) {
-			files = previous;
+			files = previousFiles;
+			searchResults = previousResults;
 			report(e);
 		}
 	}
@@ -288,6 +299,42 @@
 			folders = previous;
 			report(e);
 		}
+	}
+
+	// --- searching --------------------------------------------------------
+
+	async function runSearch(term) {
+		searching = true;
+		try {
+			const data = await api.getJSON(`/search?q=${encodeURIComponent(term)}`);
+			searchResults = data.files ?? [];
+		} catch (e) {
+			report(e);
+		} finally {
+			searching = false;
+		}
+	}
+
+	/** Wait for a pause in typing rather than firing a query per keystroke. */
+	function onSearchInput() {
+		clearTimeout(searchTimer);
+		const term = searchTerm.trim();
+
+		if (!term) {
+			searchResults = [];
+			searching = false;
+			return;
+		}
+
+		searching = true;
+		searchTimer = setTimeout(() => runSearch(term), 250);
+	}
+
+	function clearSearch() {
+		clearTimeout(searchTimer);
+		searchTerm = '';
+		searchResults = [];
+		searching = false;
 	}
 
 	// --- display helpers --------------------------------------------------
@@ -349,33 +396,66 @@
 	<main>
 		<div class="bar">
 			<div class="place">
-				<nav class="crumbs" aria-label="Folder path">
-					{#each trail as crumb, i (crumb.folder_id)}
-						{#if i > 0}<span class="sep" aria-hidden="true">/</span>{/if}
-						{#if i === trail.length - 1}
-							<span class="here" aria-current="page">{crumb.name}</span>
+				{#if searchMode}
+					<h1 class="results-head">Results</h1>
+					<p class="count">
+						{#if searching}
+							Searching…
 						{:else}
-							<button class="crumb" onclick={() => goToCrumb(i)}>{crumb.name}</button>
+							{searchResults.length}
+							{searchResults.length === 1 ? 'match' : 'matches'} for “{searchTerm.trim()}”
 						{/if}
-					{/each}
-				</nav>
-				<p class="count">
-					{#if loading}
-						Loading…
-					{:else if itemCount === 0}
-						Empty
-					{:else}
-						{itemCount}
-						{itemCount === 1 ? 'item' : 'items'}
-					{/if}
-				</p>
+					</p>
+				{:else}
+					<nav class="crumbs" aria-label="Folder path">
+						{#each trail as crumb, i (crumb.folder_id)}
+							{#if i > 0}<span class="sep" aria-hidden="true">/</span>{/if}
+							{#if i === trail.length - 1}
+								<span class="here" aria-current="page">{crumb.name}</span>
+							{:else}
+								<button class="crumb" onclick={() => goToCrumb(i)}>{crumb.name}</button>
+							{/if}
+						{/each}
+					</nav>
+					<p class="count">
+						{#if loading}
+							Loading…
+						{:else if itemCount === 0}
+							Empty
+						{:else}
+							{itemCount}
+							{itemCount === 1 ? 'item' : 'items'}
+						{/if}
+					</p>
+				{/if}
 			</div>
 
 			<div class="tools">
-				<button class="btn btn-quiet" onclick={startNewFolder} disabled={makingFolder || loading}>
+				<div class="search">
+					<input
+						class="field compact-search"
+						type="search"
+						placeholder="Search your files"
+						aria-label="Search your files"
+						bind:value={searchTerm}
+						oninput={onSearchInput}
+					/>
+					{#if searchMode}
+						<button class="clear" onclick={clearSearch} aria-label="Clear search">Clear</button>
+					{/if}
+				</div>
+				<button
+					class="btn btn-quiet"
+					onclick={startNewFolder}
+					disabled={makingFolder || loading || searchMode}
+				>
 					New folder
 				</button>
-				<button class="btn" onclick={() => fileInput.click()} disabled={uploadingCount > 0}>
+				<button
+					class="btn"
+					onclick={() => fileInput.click()}
+					disabled={uploadingCount > 0 || searchMode}
+				>
 					{#if uploadingCount > 0}
 						Uploading {uploadingCount}…
 					{:else}
@@ -415,7 +495,36 @@
 			</div>
 		{/if}
 
-		{#if loading}
+		{#if searchMode}
+			{#if searching}
+				<p class="quiet">Searching…</p>
+			{:else if searchResults.length === 0}
+				<div class="empty">
+					<p class="empty-head">No files match “{searchTerm.trim()}”</p>
+					<p class="quiet">Search looks at filenames across all your folders, but not the trash.</p>
+				</div>
+			{:else}
+				<ul class="list">
+					{#each searchResults as file (file.file_id)}
+						<li class="row">
+							<span class="badge">{extensionOf(file.filename)}</span>
+							<span class="detail">
+								<span class="label">{file.filename}</span>
+								<span class="meta">
+									<span>in {file.folder_is_root ? 'Your files' : file.folder_name}</span>
+									{#if formatSize(file.size)}<span>{formatSize(file.size)}</span>{/if}
+									{#if formatDate(file.created_at)}<span>{formatDate(file.created_at)}</span>{/if}
+								</span>
+							</span>
+							<span class="actions">
+								<button class="btn btn-quiet small" onclick={() => download(file)}>Download</button>
+								<button class="btn btn-danger small" onclick={() => trashFile(file)}>Trash</button>
+							</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		{:else if loading}
 			<p class="quiet">Fetching your files.</p>
 		{:else if isEmpty && !makingFolder}
 			<div class="empty">
@@ -512,6 +621,38 @@
 		display: flex;
 		flex: none;
 		gap: 0.5rem;
+	}
+
+	.search {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.compact-search {
+		width: 13rem;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.925rem;
+	}
+
+	.clear {
+		position: absolute;
+		right: 0.5rem;
+		padding: 0.1rem 0.35rem;
+		font: inherit;
+		font-size: 0.8rem;
+		color: var(--ink-soft);
+		background: var(--surface);
+		border: none;
+		cursor: pointer;
+	}
+
+	.clear:hover {
+		color: var(--teal);
+	}
+
+	.results-head {
+		font-size: 1.5rem;
 	}
 
 	.crumbs {
@@ -720,6 +861,18 @@
 		.bar {
 			flex-direction: column;
 			align-items: stretch;
+		}
+
+		.tools {
+			flex-wrap: wrap;
+		}
+
+		.search {
+			flex: 1 1 100%;
+		}
+
+		.compact-search {
+			width: 100%;
 		}
 
 		.actions {

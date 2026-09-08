@@ -750,3 +750,36 @@ class Database:
         finally:
             if conn:
                 conn.close()
+
+    def search_files(self, user_id: int, term: str, limit: int = 50):
+        """Filename search across all of a user's folders - exlcuding trash"""
+        conn = None
+        try:
+            # % and _ are wildcards in LIKE. Someone searching "report_final"
+            # means a literal underscore, so escape them before building the
+            # pattern or the search quietly matches more than they asked for.
+            escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+
+            conn = self.get_conn()
+            cursor = self._cursor(conn)
+            cursor.execute(
+                """
+                SELECT f.*, fo.name AS folder_name, fo.is_root AS folder_is_root
+                FROM files f
+                JOIN folders fo ON fo.folder_id = f.folder_id
+                WHERE f.user_id = %s
+                    AND f.deleted_at IS NULL
+                    AND f.filename ILIKE %s ESCAPE '\\'
+                ORDER BY f.created_at DESC NULLS LAST, f.filename
+                LIMIT %s
+                """,
+                (user_id, pattern, limit)
+            )
+            return cursor.fetchall()
+        except psycopg2.Error as e:
+            print(f"Search failed: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()

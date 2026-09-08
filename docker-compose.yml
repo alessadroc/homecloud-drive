@@ -1,14 +1,19 @@
+# Shared definition for every machine. Anything that differs between the dev
+# box and the server is a variable, read from ./.env at the project root.
+
 services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_DB: drive_db
-      POSTGRES_USER: drive_user
-      POSTGRES_PASSWORD: your_password_here
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
+      # Named volume on the machine's own disk. Postgres should not live on
+      # the spinning HDD that holds the blobs.
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U drive_user -d drive_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,17 +24,19 @@ services:
       db:
         condition: service_healthy
     environment:
-      DB_NAME: drive_db
-      DB_USER: drive_user
-      DB_PASSWORD: your_password_here
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       DB_HOST: db
       DB_PORT: 5432
+      # Container path, identical on every machine. Only the host side moves.
       STORAGE_ROOT: /data/storage
-    user: "1000:1000"
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     volumes:
-      - /mnt/external-ssd/drive-storage:/data/storage
+      - ${STORAGE_HOST_PATH}:/data/storage
     ports:
-      - "8008:8000"
+      - "${API_PORT:-8008}:8000"
 
   web:
     build: ./drive-frontend
@@ -40,4 +47,3 @@ services:
 
 volumes:
   pgdata:
-  filestorage:

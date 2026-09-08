@@ -63,4 +63,6 @@ The project consists of three main components:
 
 ## Drive Deployment
 
-By default, the mount location in compose will store uploaded files locally. You must format a storage drive to ext4, mount it and change the bind in compose if you'd wish to use another drive.
+By default, the mount location in compose will store uploaded files locally. You must format a storage drive to ext4, mount it and change the bind in compose if you'd wish to use another drive. Once all the dependencies, such as .env has been sorted, run this command:
+
+```docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d```

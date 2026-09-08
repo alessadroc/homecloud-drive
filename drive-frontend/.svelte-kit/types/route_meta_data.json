@@ -1,6 +1,15 @@
 {
-	"/": [],
-	"/login": [],
-	"/signup": [],
-	"/trash": []
+	"/": [
+		"src/routes/+layout.js",
+		"src/routes/+layout.js"
+	],
+	"/login": [
+		"src/routes/+layout.js"
+	],
+	"/signup": [
+		"src/routes/+layout.js"
+	],
+	"/trash": [
+		"src/routes/+layout.js"
+	]
 }

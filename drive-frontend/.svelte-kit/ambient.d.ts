@@ -52,7 +52,6 @@ declare module '$env/static/private' {
 	export const DBUS_SESSION_BUS_ADDRESS: string;
 	export const npm_config_engine_strict: string;
 	export const WSL_DISTRO_NAME: string;
-	export const npm_config_save_dev: string;
 	export const COLOR: string;
 	export const WAYLAND_DISPLAY: string;
 	export const LOGNAME: string;
@@ -191,7 +190,6 @@ declare module '$env/dynamic/private' {
 		DBUS_SESSION_BUS_ADDRESS: string;
 		npm_config_engine_strict: string;
 		WSL_DISTRO_NAME: string;
-		npm_config_save_dev: string;
 		COLOR: string;
 		WAYLAND_DISPLAY: string;
 		LOGNAME: string;

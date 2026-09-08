@@ -1,6 +1,6 @@
+.env
 drive-backend/src/.env
 drive-backend/drive-storage
-
 node_modules
 
 # Output

@@ -15,7 +15,7 @@
 		error = '';
 		busy = true;
 		try {
-			const data = await api.postJSON(`/sign-in?${query({ username: name, password })}`);
+			const data = await api.postJSON('/sign-in', { username: name, password });
 			signIn(data.token, name);
 			goto('/');
 		} catch (e) {

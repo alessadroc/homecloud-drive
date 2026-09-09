@@ -10,6 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import Database
 from contextlib import asynccontextmanager
 from cleanup import purge_trash
+from pydantic import BaseModel
+
+class Credentials(BaseModel):
+    username: str
+    password: str
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -48,22 +53,21 @@ def read_root():
 # --- Unprotected routes (no token needed - these are how you GET a token) ---
 
 @app.post("/sign-up")
-def sign_up(username: str, password: str) -> dict:
-    if db.get_user_by_username(username):
+def sign_up(creds: Credentials) -> dict:
+    if db.get_user_by_username(creds.username):
         raise HTTPException(status_code=400, detail="Username already taken")
 
-    hashed = pwd_context.hash(password)
-    user_id = db.insert_user(username, hashed)
+    hashed = pwd_context.hash(creds.password)
+    user_id = db.insert_user(creds.username, hashed)
     storage.create_user_root(user_id)
     return {"status": "ok", "message": "User created.", "id": user_id}
 
-
 @app.post("/sign-in")
-def sign_in(username: str, password: str):
-    user = db.get_user_by_username(username)
+def sign_in(creds: Credentials):
+    user = db.get_user_by_username(creds.username)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    if not pwd_context.verify(password, user["hashed_password"]):
+    if not pwd_context.verify(creds.password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     token = db.insert_session(user["id"])
     return {"status": "ok", "message": "Logged in.", "token": token}

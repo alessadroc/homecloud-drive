@@ -47,9 +47,13 @@ export const api = {
 		return res.json();
 	},
 
-	async postJSON(path) {
-		const res = await request(path, { method: 'POST' });
-		return res.json();
+	async postJSON(path, body) {
+	const res = await request(path, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: body === undefined ? undefined : JSON.stringify(body)
+	});
+	return res.json();
 	},
 
 	/**

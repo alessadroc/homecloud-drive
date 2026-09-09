@@ -14,8 +14,10 @@
 		error = '';
 		busy = true;
 		try {
-			await api.postJSON(`/sign-up?${query({ username: name, password })}`);
-			// Sign-up doesn't issue a token, so send them to sign in.
+			await api.postJSON('/sign-up', {
+				username: name,
+				password,
+				});
 			goto('/login');
 		} catch (e) {
 			error = e.message;

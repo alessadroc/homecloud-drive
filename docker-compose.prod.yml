@@ -8,3 +8,6 @@ services:
     restart: unless-stopped
     # No source bind mount and no --reload: the server runs the code baked
     # into the image, so a deploy is `git pull && docker compose ... up -d --build`.
+
+  web:
+    restart: unless-stopped

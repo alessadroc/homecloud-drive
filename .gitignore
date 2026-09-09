@@ -1,6 +1,6 @@
 .env
 drive-backend/src/.env
-drive-backend/src/__pycache__
+*.pyc
 drive-backend/drive-storage
 node_modules
 
